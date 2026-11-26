@@ -18,12 +18,25 @@ Then point the browser at `http://localhost:8080/`.
 
 ## Start at logon (Windows)
 
-From a command prompt, in this folder (adjust nothing; it uses the current path):
+From a **PowerShell** prompt, in this folder, as the kiosk user (it uses the current path):
 
-    schtasks /create /tn gigproxy /sc onlogon /rl limited /tr "\"%cd%\start.cmd\""
+    $a = New-ScheduledTaskAction -Execute "$PWD\start.cmd" -WorkingDirectory "$PWD"
+    $t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+    $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+         -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    Register-ScheduledTask -TaskName gigproxy -Action $a -Trigger $t -Settings $s -Force
 
-Remove with `schtasks /delete /tn gigproxy /f`. Make sure the proxy starts before the kiosk
-browser (or have the browser retry), otherwise it will show a connection error at boot.
+The settings matter: by default Task Scheduler won't start a task on battery, stops it when
+switching to battery, and kills it after 72 hours. The flags above turn all three off.
+
+Test with `Start-ScheduledTask gigproxy`, then check `proxy.log`.
+Remove with `Unregister-ScheduledTask gigproxy -Confirm:$false`.
+
+Notes:
+- It runs at logon, so the kiosk user must log in (e.g. auto-login).
+- Make sure the proxy starts before the kiosk browser (or have the browser retry), otherwise
+  it will show a connection error at boot.
+- `node` must be on the PATH for that user; otherwise put its full path in `start.cmd`.
 
 ## Configuration (environment variables)
 
